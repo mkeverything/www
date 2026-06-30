@@ -16,9 +16,13 @@ const linkClass = 'underline underline-offset-4 hover:opacity-50 transition-opac
 type Language = 'en' | 'ru'
 type Path = typeof rootPath | typeof homeRootPath | typeof homePath | `~/${string}`
 
+type TranslatedContent = (language: Language) => ReactNode
+
+type HistoryLineContent = ReactNode | TranslatedContent
+
 type HistoryLine = {
 	id: number
-	content: ReactNode
+	content: HistoryLineContent
 }
 
 type Project = {
@@ -118,12 +122,12 @@ const mailOutput = (language: Language) => [
 const whoamiOutput = (language: Language) =>
 	language === 'en'
 		? 'developers building web apps, internal tools, and public websites'
-		: 'разработчики, которые делают веб-приложения, внутренние инструменты и публичные сайты'
+		: 'мы инди-команда разработчиков: делаем веб-приложения, телеграм-ботов, лендинги и софт любой сложности'
 
 const introWhoamiOutput = (language: Language) =>
 	language === 'en'
 		? 'we are indie developers building web apps, telegram bots, landing pages and ready to do pretty much any kind of software'
-		: 'мы инди-команда разработчиков: делаем веб-приложения, telegram-ботов, лендинги и почти любой софт'
+		: 'мы инди-команда разработчиков: делаем веб-приложения, телеграм-ботов, лендинги и софт любой сложности'
 
 const rootListing = () => 'home'
 const homeRootListing = () => 'mkeverything'
@@ -183,7 +187,7 @@ const App = () => {
 		inputRef.current?.focus()
 	}
 
-	const addHistory = (...lines: ReactNode[]) => {
+	const addHistory = (...lines: HistoryLineContent[]) => {
 		setHistory((current) => [
 			...current,
 			...lines.map((content) => ({
@@ -193,8 +197,14 @@ const App = () => {
 		])
 	}
 
+	const addLocalizedHistory = (en: ReactNode, ru: ReactNode) => {
+		addHistory((nextLanguage) => nextLanguage === 'en' ? en : ru)
+	}
+
 	const addTranslatedHistory = (lines: (language: Language) => ReactNode[]) => {
-		addHistory(...lines(language))
+		lines(language).forEach((_, index) => {
+			addHistory((nextLanguage) => lines(nextLanguage)[index])
+		})
 	}
 
 	const clearTerminal = () => {
@@ -283,7 +293,7 @@ const App = () => {
 	}, [])
 
 	const sendEmail = async (email: string) => {
-		addHistory(language === 'en' ? 'sending...' : 'отправляем...')
+		addLocalizedHistory('sending...', 'отправляем...')
 		setIsSending(true)
 
 		try {
@@ -301,13 +311,21 @@ const App = () => {
 			}
 
 			if (!response.ok || !contactSent(data)) {
-				addHistory(<span className='text-red-400'>failed: {contactError(data)}</span>)
+				addHistory((nextLanguage) => (
+					<span className='text-red-400'>
+						{nextLanguage === 'en' ? 'failed' : 'ошибка'}: {contactError(data)}
+					</span>
+				))
 				return
 			}
 
-			addHistory(language === 'en' ? 'sent' : 'отправлено')
+			addLocalizedHistory('sent', 'отправлено')
 		} catch {
-			addHistory(<span className='text-red-400'>failed: network error, please try again</span>)
+			addHistory((nextLanguage) => (
+				<span className='text-red-400'>
+					{nextLanguage === 'en' ? 'failed: network error, please try again' : 'ошибка: сеть недоступна, попробуйте ещё раз'}
+				</span>
+			))
 		} finally {
 			setIsSending(false)
 		}
@@ -323,7 +341,7 @@ const App = () => {
 
 	const handleLanguageCommand = (name: Language, args: string[]) => {
 		if (args.length > 0) {
-			addHistory(language === 'en' ? `${name}: too many arguments` : `${name}: слишком много аргументов`)
+			addLocalizedHistory(`${name}: too many arguments`, `${name}: слишком много аргументов`)
 			return
 		}
 
@@ -334,9 +352,10 @@ const App = () => {
 		const target = resolvePath(args[0] || '~')
 
 		if (!target) {
-			addHistory(language === 'en'
-				? `cd: no such file or directory: ${args[0]}`
-				: `cd: нет такого файла или каталога: ${args[0]}`)
+			addLocalizedHistory(
+				`cd: no such file or directory: ${args[0]}`,
+				`cd: нет такого файла или каталога: ${args[0]}`,
+			)
 			return
 		}
 
@@ -347,9 +366,10 @@ const App = () => {
 		const target = resolvePath(args[0] || '.')
 
 		if (!target) {
-			addHistory(language === 'en'
-				? `ls: cannot access '${args[0]}': No such file or directory`
-				: `ls: невозможно получить доступ к '${args[0]}': Нет такого файла или каталога`)
+			addLocalizedHistory(
+				`ls: cannot access '${args[0]}': No such file or directory`,
+				`ls: невозможно получить доступ к '${args[0]}': Нет такого файла или каталога`,
+			)
 			return
 		}
 
@@ -364,7 +384,7 @@ const App = () => {
 		}
 
 		if (target === homePath) {
-			addHistory(homeListing(language))
+			addHistory(homeListing)
 			return
 		}
 
@@ -378,7 +398,7 @@ const App = () => {
 
 	const handleCatCommand = (args: string[]) => {
 		if (args.length === 0) {
-			addHistory(language === 'en' ? 'usage: cat <file>' : 'использование: cat <file>')
+			addLocalizedHistory('usage: cat <file>', 'использование: cat <file>')
 			return
 		}
 
@@ -389,13 +409,14 @@ const App = () => {
 			}
 
 			if (cwd === homePath && file === workDir) {
-				addHistory(language === 'en' ? `cat: ${file}: Is a directory` : `cat: ${file}: Это каталог`)
+				addLocalizedHistory(`cat: ${file}: Is a directory`, `cat: ${file}: Это каталог`)
 				return
 			}
 
-			addHistory(language === 'en'
-				? `cat: ${file}: No such file or directory`
-				: `cat: ${file}: Нет такого файла или каталога`)
+			addLocalizedHistory(
+				`cat: ${file}: No such file or directory`,
+				`cat: ${file}: Нет такого файла или каталога`,
+			)
 		})
 	}
 
@@ -440,12 +461,12 @@ const App = () => {
 				return
 			}
 
-			addHistory(cwd === homePath ? '/home/mkeverything' : `/home/mkeverything/${workDir}`)
+			addHistory((nextLanguage) => cwd === homePath ? '/home/mkeverything' : `/home/mkeverything/${workDirFor(nextLanguage)}`)
 			return
 		}
 
 		if (value === 'whoami') {
-			addHistory(whoamiOutput(language))
+			addHistory(whoamiOutput)
 			return
 		}
 
@@ -474,7 +495,7 @@ const App = () => {
 			return
 		}
 
-		addHistory(language === 'en' ? `${name}: command not found` : `${name}: команда не найдена`)
+		addLocalizedHistory(`${name}: command not found`, `${name}: команда не найдена`)
 	}
 
 	const browseCommandHistory = (direction: 'previous' | 'next') => {
@@ -548,7 +569,7 @@ const App = () => {
 
 				<div>
 					{history.map((line) => (
-						<p key={line.id}>{line.content}</p>
+						<p key={line.id}>{typeof line.content === 'function' ? line.content(language) : line.content}</p>
 					))}
 					{!isSending && (
 						<form onSubmit={runCommand} className='flex items-center gap-2'>
