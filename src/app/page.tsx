@@ -68,7 +68,7 @@ const CommandLine = ({ prompt, command }: { prompt: string, command: string }) =
 	<p className='relative whitespace-pre-wrap break-all'>
 		<span className='absolute left-0 top-0'>{prompt}</span>
 		<span style={{ textIndent: `${prompt.length + 1}ch` }} className='block'>
-			{command}
+			{command || '\u00a0'}
 		</span>
 	</p>
 )
@@ -181,6 +181,7 @@ const App = () => {
 	const [isSending, setIsSending] = useState(false)
 	const [isCleared, setIsCleared] = useState(false)
 	const inputRef = useRef<HTMLTextAreaElement>(null)
+	const historyEndRef = useRef<HTMLDivElement>(null)
 	const nextLineId = useRef(0)
 	const contactFile = contactFileFor(language)
 	const workDir = workDirFor(language)
@@ -278,6 +279,14 @@ const App = () => {
 		input.style.height = 'auto'
 		input.style.height = `${input.scrollHeight}px`
 	}, [command])
+
+	useLayoutEffect(() => {
+		if (history.length === 0) {
+			return
+		}
+
+		historyEndRef.current?.scrollIntoView({ block: 'end', behavior: 'smooth' })
+	}, [history.length, isSending])
 
 	useEffect(() => {
 		const focusOnKeyDown = (event: KeyboardEvent) => {
@@ -621,6 +630,7 @@ const App = () => {
 							/>
 						</form>
 					)}
+					<div ref={historyEndRef} />
 				</div>
 			</section>
 		</main>
